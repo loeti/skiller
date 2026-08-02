@@ -5,6 +5,17 @@ import Foundation
 /// Links are always relative so the whole workspace can be moved or synced to another
 /// machine without every link breaking.
 public enum LinkManager {
+    /// How the destination of a link is written.
+    ///
+    /// Inside the workspace links are always `.relative`, so the whole tree can be moved.
+    /// A link from a *project* into the workspace has no such invariant — the two trees move
+    /// independently — so `apply` writes those `.absolute`, where a relative path would be
+    /// both unreadable and wrong the moment either side moves.
+    public enum LinkStyle: Sendable, Hashable {
+        case relative
+        case absolute
+    }
+
     public enum LinkState: Sendable, Equatable {
         /// Nothing exists at the link path.
         case missing
@@ -41,7 +52,7 @@ public enum LinkManager {
         return components.isEmpty ? "." : components.joined(separator: "/")
     }
 
-    public static func state(of link: URL, expectedTarget: URL) -> LinkState {
+    public static func state(of link: URL, expectedTarget: URL, style: LinkStyle = .relative) -> LinkState {
         let fileManager = FileManager.default
         let path = filesystemPath(link)
 
@@ -56,7 +67,7 @@ public enum LinkManager {
             return .broken(target: "<unreadable>")
         }
 
-        let expected = relativePath(from: link.deletingLastPathComponent(), to: expectedTarget)
+        let expected = destinationPath(for: expectedTarget, from: link, style: style)
         let resolved = URL(
             filePath: destination,
             directoryHint: .isDirectory,
@@ -74,15 +85,21 @@ public enum LinkManager {
         return .correct
     }
 
-    /// Points `link` at `target` using a relative path.
+    /// Points `link` at `target`.
     ///
     /// - Parameter replaceExisting: replaces an existing *symlink*. A real file or directory
     ///   is never removed silently — that always throws.
-    public static func createLink(at link: URL, to target: URL, replaceExisting: Bool = false) throws {
+    /// - Parameter style: how the destination is written. See `LinkStyle`.
+    public static func createLink(
+        at link: URL,
+        to target: URL,
+        replaceExisting: Bool = false,
+        style: LinkStyle = .relative
+    ) throws {
         let fileManager = FileManager.default
         let path = filesystemPath(link)
 
-        switch state(of: link, expectedTarget: target) {
+        switch state(of: link, expectedTarget: target, style: style) {
         case .correct:
             return
         case .occupiedByRealPath:
@@ -105,8 +122,37 @@ public enum LinkManager {
             at: link.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let relative = relativePath(from: link.deletingLastPathComponent(), to: target)
-        try fileManager.createSymbolicLink(atPath: path, withDestinationPath: relative)
+        try fileManager.createSymbolicLink(
+            atPath: path,
+            withDestinationPath: destinationPath(for: target, from: link, style: style)
+        )
+    }
+
+    /// The literal string stored in the symlink.
+    static func destinationPath(for target: URL, from link: URL, style: LinkStyle) -> String {
+        switch style {
+        case .relative: relativePath(from: link.deletingLastPathComponent(), to: target)
+        case .absolute: filesystemPath(target)
+        }
+    }
+
+    /// The destination of a symlink, resolved against its own directory but *not* followed
+    /// any further — a link into `installs/` resolves to the install link itself, not to the
+    /// clone behind it.
+    ///
+    /// `.notDirectory` on purpose: the result is compared against paths built by `Layout`,
+    /// and a trailing slash would make two spellings of the same directory unequal.
+    public static func resolvedDestination(of link: URL) -> URL? {
+        guard let destination = try? FileManager.default.destinationOfSymbolicLink(
+            atPath: filesystemPath(link)
+        ) else { return nil }
+        // `.absoluteURL` before standardizing: a URL built with `relativeTo:` keeps its base,
+        // and such a URL never compares equal to the same path spelled absolutely.
+        return URL(
+            filePath: destination,
+            directoryHint: .notDirectory,
+            relativeTo: link.deletingLastPathComponent()
+        ).absoluteURL.standardizedFileURL
     }
 
     /// Removes a symlink. Refuses to touch real files or directories.
@@ -118,6 +164,23 @@ public enum LinkManager {
             throw LinkError(path: path, reason: "not a symlink — refusing to delete")
         }
         try fileManager.removeItem(at: link)
+    }
+
+    /// Whether two URLs denote the same location, seeing through symlinked directories in the
+    /// paths themselves.
+    ///
+    /// The rest of this type compares paths lexically on purpose, but that is only sound for
+    /// two paths built the same way. `FileManager` hands back directory contents with the
+    /// symlinks in the *base* path already resolved, so a workspace reached through one — on
+    /// macOS `/tmp` and `/var` both are — would otherwise never match the paths `Layout` builds.
+    /// Compared as path strings rather than as `URL`s: two URLs for one location differ over
+    /// a trailing slash and over whether they carry a base, and neither is worth caring about.
+    public static func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        canonicalPath(lhs) == canonicalPath(rhs)
+    }
+
+    static func canonicalPath(_ url: URL) -> String {
+        filesystemPath(url.absoluteURL.resolvingSymlinksInPath().standardizedFileURL)
     }
 
     public static func isSymlink(_ url: URL) -> Bool {

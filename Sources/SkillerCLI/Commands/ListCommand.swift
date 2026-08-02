@@ -105,12 +105,23 @@ struct ListCommand: AsyncParsableCommand {
             return
         }
 
+        let skillsRoot = workspace.layout.skillsDirectory
         for group in groups {
             let links = LinkManager.symlinks(in: workspace.layout.groupDirectory(group))
             // A parent that only holds subgroups has no links of its own; still worth showing.
             print("\(group)/")
             for link in links {
                 let name = link.lastPathComponent
+                let destination = LinkManager.resolvedDestination(of: link)
+
+                // A link into skills/ gathers another group; `apply` flattens it away.
+                if let destination, GroupResolver.isUnder(destination, root: skillsRoot) {
+                    let target = LinkManager.relativePath(from: skillsRoot, to: destination)
+                    let marker = Workspace.isDirectory(destination) ? " " : "!"
+                    print("  \(marker) \(name)/  → \(target)")
+                    continue
+                }
+
                 let state = LinkManager.state(
                     of: link,
                     expectedTarget: workspace.layout.installLink(name: name)

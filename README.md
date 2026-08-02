@@ -17,7 +17,8 @@ agentic-workspace/
 │   └── <name>  →  ../downloads/github.com/<owner>/<repo>/<skill-pfad>
 └── skills/
     ├── swiftui/<name>  →  ../../installs/<name>
-    └── ios/<name>      →  ../../installs/<name>      derselbe Skill, zweite Gruppe
+    ├── ios/<name>      →  ../../installs/<name>      derselbe Skill, zweite Gruppe
+    └── ios/swiftui     →  ../swiftui                 Gruppe in Gruppe
 ```
 
 Drei Ebenen, drei Aufgaben:
@@ -28,7 +29,8 @@ Drei Ebenen, drei Aufgaben:
   Symlink in einen Clone (Herkunft: `git`) oder ein echtes Verzeichnis (Herkunft: `local`,
   via `adopt`).
 - **skills/** gehört dir. Beliebig tief verschachtelte Gruppen, jeder Eintrag ein Symlink nach
-  `installs/`. Ein Skill kann in beliebig vielen Gruppen liegen, ohne kopiert zu werden.
+  `installs/` — oder in eine andere Gruppe. Ein Skill kann in beliebig vielen Gruppen liegen,
+  ohne kopiert zu werden.
 
 Alle Symlinks sind relativ — der Workspace lässt sich verschieben oder auf eine andere
 Maschine syncen, ohne dass etwas bricht.
@@ -57,8 +59,9 @@ skiller init "$AGENTIC_WORKSPACE"
 | `search <query>` | Sucht in allen Quellen, dedupliziert, nummeriert |
 | `index [--refresh]` | Lokalen Registry-Index anzeigen bzw. neu laden |
 | `add <ref\|nummer>` | Clone → `installs/`-Link → optional Gruppen-Link → Lockfile |
-| `link <gruppe> <name>…` | Skill in eine Gruppe legen (wird bei Bedarf angelegt) |
+| `link <gruppe> <name>…` | Skill — oder eine andere Gruppe — in eine Gruppe legen |
 | `unlink <gruppe> <name>…` | Aus der Gruppe entfernen, Install bleibt |
+| `apply <gruppe>…` | Gruppen flach nach `.claude/skills/` des aktuellen Projekts legen |
 | `list` / `list --groups` | Installierte Skills bzw. Gruppenbaum |
 | `info <name\|ref>` | Details zu einem Skill — installiert oder noch nicht |
 | `sync` / `sync --update` | Lockfile → Ist-Zustand, bzw. auf neuen Commit ziehen |
@@ -79,7 +82,65 @@ skiller search swiftui
 skiller add 3 --group swiftui
 skiller link ios swiftui-expert-skill    # derselbe Skill, zweite Gruppe
 skiller list --groups
+
+cd /Volumes/Code/my-app
+skiller apply ios                        # → .claude/skills/
 ```
+
+## Gruppen in Gruppen
+
+Eine Gruppe kann eine andere aufnehmen. `skiller link` unterscheidet selbst, ob der Name ein
+Skill oder eine Gruppe ist:
+
+```sh
+skiller link ios swift swiftui           # skills/ios/swift → ../swift
+```
+
+Ist ein Name beides, bricht `link` ab und verlangt `--as-group` — raten wäre hier die
+schlechtere Antwort. Selbstverschachtelung (`link ios ios`, oder eine Gruppe in ihren eigenen
+Unterbaum) wird abgelehnt, weil das den Verzeichnisbaum unendlich macht. Ein Ringschluss über
+Geschwistergruppen (`ios → swift → ios`) ist dagegen erlaubt: `apply` erkennt ihn, meldet den
+Weg und läuft weiter.
+
+Gruppen-Links stehen bewusst *nicht* im Lockfile. `skills/` ist deine Ablage; nur
+Skill-Mitgliedschaft ist etwas, das `sync` sinnvoll wiederherstellen kann.
+
+## In ein Projekt ausrollen
+
+`apply` löst die genannten Gruppen samt aller Untergruppen auf und legt das Ergebnis **flach**
+in `.claude/skills/` des aktuellen Verzeichnisses ab:
+
+```sh
+skiller apply ios --dry-run              # erst anschauen
+skiller apply ios vpbank                 # mehrere Gruppen auf einmal
+skiller apply ios --clean                # bestehende Symlinks vorher wegräumen
+```
+
+```
+.claude/skills/
+├── swift-concurrency → /Volumes/Tools/agentic-workspace/installs/swift-concurrency
+└── swiftui-expert    → /Volumes/Tools/agentic-workspace/installs/swiftui-expert
+```
+
+Die Zwischenebenen `ios`, `swift` und `swiftui` tauchen nicht auf. Ein Skill, der über mehrere
+Gruppen erreichbar ist, wird einmal verlinkt.
+
+Drei Entscheidungen dahinter:
+
+- **Absolute Links.** Innerhalb des Workspace sind alle Links relativ, damit er verschiebbar
+  bleibt. Projekt und Workspace bewegen sich aber unabhängig voneinander — ein relativer Pfad
+  wäre hier unlesbar und beim ersten Verschieben falsch.
+- **Ziel ist `installs/<name>`, nicht der Clone.** `sync --update` erreicht damit alle
+  ausgerollten Projekte, ohne dass `apply` erneut laufen muss.
+- **Fremdes bleibt liegen.** Was nicht aus diesem Workspace stammt, fasst `apply` nicht an, und
+  `--clean` entfernt ausschliesslich Symlinks — nie echte Verzeichnisse.
+
+Ohne `--clean` bleiben Links aus einem früheren `apply` bestehen; sie werden am Ende
+aufgezählt, damit ein Projekt bewusst mehrere Gruppensätze führen kann.
+
+`.claude/` wird in `.gitignore` eingetragen, sofern noch keine Zeile das abdeckt — das
+Verzeichnis enthält nur Verweise auf einen maschinenlokalen Workspace. Fehlt die Datei und ist
+das Verzeichnis kein Git-Repository, passiert nichts; `--no-gitignore` schaltet es ganz ab.
 
 ## Migration bestehender Verzeichnisse
 

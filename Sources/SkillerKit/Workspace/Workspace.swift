@@ -167,7 +167,7 @@ public struct Workspace: Sendable {
         return result
     }
 
-    static func isDirectory(_ url: URL) -> Bool {
+    public static func isDirectory(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(
             atPath: url.path(percentEncoded: false),

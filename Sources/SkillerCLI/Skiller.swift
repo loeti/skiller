@@ -15,6 +15,7 @@ struct Skiller: AsyncParsableCommand {
             AddCommand.self,
             LinkCommand.self,
             UnlinkCommand.self,
+            ApplyCommand.self,
             ListCommand.self,
             InfoCommand.self,
             RemoveCommand.self,

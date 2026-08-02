@@ -176,6 +176,12 @@ public enum WorkspaceDoctor {
                 let name = link.lastPathComponent
                 let expected = layout.installLink(name: name)
                 if case .correct = LinkManager.state(of: link, expectedTarget: expected) { continue }
+                // A link into skills/ is a subgroup, not a skill that lost its install.
+                if let destination = LinkManager.resolvedDestination(of: link),
+                   Workspace.isDirectory(destination),
+                   GroupResolver.isUnder(destination, root: layout.skillsDirectory) {
+                    continue
+                }
                 guard workspace.lock[name]?.groups.contains(group) != true else { continue }
                 issues.append(Issue(
                     kind: .brokenGroupLink,
@@ -239,7 +245,21 @@ public enum WorkspaceDoctor {
         return contents.filter { Workspace.isDirectory($0) && !LinkManager.isSymlink($0) }
     }
 
+    /// Workspace-relative path for display.
+    ///
+    /// The directory *prefix* is canonicalised on both sides, because paths coming back from
+    /// `FileManager` may spell a symlinked ancestor differently than `Layout` does and the
+    /// subtraction would then produce a wall of `..`. The last component is appended
+    /// afterwards, so a link is still reported by its own path rather than its target's.
     private static func relative(_ url: URL, in workspace: Workspace) -> String {
-        LinkManager.relativePath(from: workspace.root, to: url)
+        let root = URL(filePath: LinkManager.canonicalPath(workspace.root), directoryHint: .isDirectory)
+        let parent = URL(
+            filePath: LinkManager.canonicalPath(url.deletingLastPathComponent()),
+            directoryHint: .isDirectory
+        )
+        return LinkManager.relativePath(
+            from: root,
+            to: parent.appending(path: url.lastPathComponent, directoryHint: .notDirectory)
+        )
     }
 }

@@ -43,18 +43,32 @@ of truth for paths — never hard-code a path elsewhere):
 <root>/.skiller/{config.json,lock.json,last-search.json}
 <root>/downloads/<host>/<owner>/<repo>/   git clone, tool-owned cache
 <root>/installs/<name>                    symlink → downloads/…/<skill path>, or a real dir
-<root>/skills/<group…>/<name>             symlink → installs/<name>
+<root>/skills/<group…>/<name>             symlink → installs/<name>, or → another group
 ```
 
 - **downloads/** is a cache the tool owns. `sync --update` does `git reset --hard` on it.
 - **installs/** is a *flat* namespace, which is the source of the name-collision rule: two
   repos with the same skill directory name make `add` fail rather than overwrite (`--as`).
-- **skills/** belongs to the user: arbitrarily nested groups, each entry a symlink. A skill
-  can be in any number of groups without being copied.
+  Flatness is also why `apply` can dedupe on the install path alone.
+- **skills/** belongs to the user: arbitrarily nested groups, each entry a symlink to an
+  install or to another group. A skill can be in any number of groups without being copied.
 
-All symlinks are relative (`LinkManager.relativePath` is purely lexical, never resolving
-symlinks) so a workspace can be moved or synced to another machine intact. `LinkManager`
-refuses to delete or overwrite a real file or directory — only symlinks.
+Group-to-group links are deliberately *not* in the lock file. Only skill membership is
+something `sync` can rebuild; the group arrangement is the user's.
+
+Links inside the workspace are relative so it can be moved or synced to another machine
+intact. A link from a project into the workspace is absolute instead — the two trees move
+independently. `LinkManager.LinkStyle` carries that distinction.
+
+`LinkManager` refuses to delete or overwrite a real file or directory — only symlinks. That
+guarantee is what makes `apply --clean` safe to run in someone's project.
+
+**Path comparison is a trap here.** `relativePath` is purely lexical on purpose, but that is
+only sound for two paths built the same way: `FileManager` hands back directory contents with
+symlinks in the *base* path already resolved, and macOS reaches `/tmp` and `/var` through one.
+Comparing such a path against one built by `Layout` needs `LinkManager.samePath`, and a URL
+made with `relativeTo:` never compares equal to the same path spelled absolutely. Three
+separate bugs came from this; prefer `samePath` / `GroupResolver.pathUnder` over `==`.
 
 A skill's `origin` decides whether content can be re-fetched: `.git` skills are a link into a
 clone, `.local` skills (from `adopt`) *are* their content in `installs/`, which is why
@@ -65,6 +79,21 @@ removing one requires `--prune`.
 `SkillInstaller` is the only type that mutates a workspace — install, link/unlink, remove,
 sync, adopt. Everything routes through it so the lock file cannot drift from the filesystem.
 `WorkspaceDoctor` is strictly read-only and never repairs; `sync` is what repairs.
+`ProjectApplier` is the one exception: it writes outside the workspace, into a project's
+`.claude/skills/`, and touches no workspace state at all.
+
+### Flattening groups into a project
+
+`GroupResolver` walks a group tree down to leaf skills; `ProjectApplier` materialises the
+result. Both are pure of workspace state, so `apply` cannot corrupt a workspace.
+
+Traversal rules worth knowing before changing them: a link that resolves *under* `skills/` is
+a subgroup, anything else is a leaf; a plain subdirectory is a subgroup too, unless it holds a
+`SKILL.md`, which makes it an unadopted skill and gets reported rather than deployed. The
+cycle check tests the current DFS stack *before* the global visited set — checking visited
+first would silently swallow the back edge that makes a cycle worth reporting. Requested
+groups are walked in the order given and directory entries in sorted order, so "first one
+wins" on a collision is stable rather than filesystem luck.
 
 `lock.json` (`Model/LockFile.swift`) records enough to rebuild from scratch: repo, skill path,
 resolved commit, groups, licence. `LockedSkill.init(from:)` decodes every field optionally so

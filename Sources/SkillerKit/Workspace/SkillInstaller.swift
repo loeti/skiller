@@ -25,6 +25,9 @@ public struct SkillInstaller: Sendable {
         case noSkillsInRepository(String)
         case localRequiresPrune(name: String)
         case notAdoptable(path: String, reason: String)
+        case noSuchGroup(String)
+        case groupContainsItself(group: String, target: String)
+        case ambiguousLinkTarget(String)
 
         public var description: String {
             switch self {
@@ -44,6 +47,18 @@ public struct SkillInstaller: Sendable {
                 """
             case .notAdoptable(let path, let reason):
                 "Cannot adopt '\(path)': \(reason)."
+            case .noSuchGroup(let group):
+                "No group 'skills/\(group)'."
+            case .groupContainsItself(let group, let target):
+                """
+                Linking '\(target)' into '\(group)' would put it inside itself, which makes the \
+                directory tree infinite. Nesting has to go the other way round.
+                """
+            case .ambiguousLinkTarget(let name):
+                """
+                '\(name)' is both an installed skill and a group. Pass --as-group to link the \
+                group, or rename one of the two.
+                """
             }
         }
     }
@@ -218,12 +233,71 @@ public struct SkillInstaller: Sendable {
     }
 
     public mutating func unlink(name: String, from group: String) throws {
-        try LinkManager.removeLink(at: workspace.layout.groupLink(group: group, name: name))
+        let link = workspace.layout.groupLink(group: group, name: name)
+        // Whether this was a skill link decides whether the lock has anything to say about it.
+        // A group link named after an installed skill must not strip that skill's membership.
+        let wasSkillLink = LinkManager.resolvedDestination(of: link).map {
+            LinkManager.samePath($0, workspace.layout.installLink(name: name))
+        } ?? false
+
+        try LinkManager.removeLink(at: link)
+        guard wasSkillLink else { return }
         try workspace.updateLock { lock in
             guard var entry = lock[name] else { return }
             entry.groups.removeAll { $0 == group }
             lock.upsert(entry)
         }
+    }
+
+    /// Links one group into another, so `skills/ios` can gather `skills/swift` and
+    /// `skills/swiftui` without duplicating their members.
+    ///
+    /// Unlike a skill link this is not recorded in the lock file: `skills/` is the user's to
+    /// arrange, and only skill membership is something `sync` can meaningfully rebuild.
+    /// The link takes the target's last path component as its name, so
+    /// `link ios vpbank/bkt` yields `skills/ios/bkt`.
+    ///
+    /// - Returns: the name the link was created under.
+    @discardableResult
+    public func linkGroup(_ target: String, into group: String) throws -> String {
+        let skillsRoot = workspace.layout.skillsDirectory
+        let targetDirectory = workspace.layout.groupDirectory(GroupResolver.normalize(target))
+        guard Workspace.isDirectory(targetDirectory) else {
+            throw InstallError.noSuchGroup(GroupResolver.normalize(target))
+        }
+
+        let normalizedTarget = LinkManager.relativePath(from: skillsRoot, to: targetDirectory)
+        let destination = workspace.layout.groupDirectory(GroupResolver.normalize(group))
+        let normalizedGroup = LinkManager.relativePath(from: skillsRoot, to: destination)
+
+        // A group linked into itself or into one of its own descendants is a filesystem loop,
+        // not a cycle the resolver can report its way out of. Sibling cycles (a → b → a) are
+        // left alone: they resolve fine, and `apply` reports them.
+        let wouldNestInsideItself = normalizedGroup == normalizedTarget
+            || normalizedGroup.hasPrefix(normalizedTarget + "/")
+        guard !wouldNestInsideItself else {
+            throw InstallError.groupContainsItself(group: normalizedGroup, target: normalizedTarget)
+        }
+
+        let name = targetDirectory.lastPathComponent
+        try LinkManager.createLink(
+            at: workspace.layout.groupLink(group: normalizedGroup, name: name),
+            to: targetDirectory,
+            replaceExisting: true
+        )
+        return name
+    }
+
+    /// Whether a name refers to a group under `skills/`.
+    public func isGroup(_ name: String) -> Bool {
+        let directory = workspace.layout.groupDirectory(GroupResolver.normalize(name))
+        return Workspace.isDirectory(directory)
+    }
+
+    /// Whether a name refers to something under `installs/`.
+    public func isInstalled(_ name: String) -> Bool {
+        workspace.lock[name] != nil || installExists(name)
+            || Workspace.isDirectory(workspace.layout.installLink(name: name))
     }
 
     // MARK: - Removal
