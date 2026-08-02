@@ -4,13 +4,13 @@ import Foundation
 ///
 /// ```
 /// <root>/
-/// ├── .skilltool/{config.json,lock.json}
+/// ├── .skiller/{config.json,lock.json}
 /// ├── downloads/<host>/<owner>/<repo>/    git clone
 /// ├── installs/<name>                     symlink → downloads/.../<skill path>
 /// └── skills/<group>/<name>               symlink → installs/<name>
 /// ```
 public struct Layout: Sendable, Hashable {
-    public static let stateDirectoryName = ".skilltool"
+    public static let stateDirectoryName = ".skiller"
     public static let downloadsDirectoryName = "downloads"
     public static let installsDirectoryName = "installs"
     public static let skillsDirectoryName = "skills"

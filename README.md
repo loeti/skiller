@@ -1,4 +1,4 @@
-# skill-tool
+# skiller
 
 Findet Agent-Skills in Registries, checkt sie lokal aus und macht sie über Symlinks
 gruppierbar.
@@ -7,7 +7,7 @@ gruppierbar.
 
 ```
 agentic-workspace/
-├── .skilltool/
+├── .skiller/
 │   ├── config.json              Quellen, Clone-Tiefe
 │   ├── lock.json                welcher Skill aus welchem Repo/Commit
 │   └── last-search.json         damit `add <nummer>` funktioniert
@@ -37,17 +37,17 @@ Maschine syncen, ohne dass etwas bricht.
 
 ```sh
 swift build -c release
-cp .build/release/skill-tool /usr/local/bin/
+cp .build/release/skiller /usr/local/bin/
 ```
 
 ## Workspace finden
 
 In dieser Reihenfolge: `--workspace <pfad>` → `$AGENTIC_WORKSPACE` → nächstes
-Elternverzeichnis mit `.skilltool/`.
+Elternverzeichnis mit `.skiller/`.
 
 ```sh
 export AGENTIC_WORKSPACE=/Volumes/Tools/agentic-workspace
-skill-tool init "$AGENTIC_WORKSPACE"
+skiller init "$AGENTIC_WORKSPACE"
 ```
 
 ## Kommandos
@@ -75,10 +75,10 @@ Nummer einer Zeile aus der letzten Suche.
 ## Typischer Ablauf
 
 ```sh
-skill-tool search swiftui
-skill-tool add 3 --group swiftui
-skill-tool link ios swiftui-expert-skill    # derselbe Skill, zweite Gruppe
-skill-tool list --groups
+skiller search swiftui
+skiller add 3 --group swiftui
+skiller link ios swiftui-expert-skill    # derselbe Skill, zweite Gruppe
+skiller list --groups
 ```
 
 ## Migration bestehender Verzeichnisse
@@ -87,9 +87,9 @@ skill-tool list --groups
 `installs/` und hinterlässt am alten Ort einen Symlink — die Gruppierung bleibt also erhalten:
 
 ```sh
-skill-tool adopt --dry-run          # erst anschauen
-skill-tool adopt                    # alle Kandidaten unter skills/
-skill-tool adopt --suggest          # zusätzlich nach Upstream-Quellen suchen
+skiller adopt --dry-run          # erst anschauen
+skiller adopt                    # alle Kandidaten unter skills/
+skiller adopt --suggest          # zusätzlich nach Upstream-Quellen suchen
 ```
 
 Adoptierte Skills haben keinen Upstream: `installs/<name>` ist die einzige Kopie ihres
@@ -102,12 +102,12 @@ raw.githubusercontent.com, rund 160'000 Skills in 256 Shards. Einzige Quelle mit
 **Beschreibung und Lizenz pro Skill**. Muss einmal lokal indexiert werden:
 
 ```sh
-skill-tool index --refresh     # ~18 MB, ca. 5 s
-skill-tool index               # Status, Alter, Anzahl
+skiller index --refresh     # ~18 MB, ca. 5 s
+skiller index               # Status, Alter, Anzahl
 ```
 
 Danach ist die Suche offline und ohne Rate-Limit — rund 60 ms über alle 160k Records. Der
-Index liegt in `$XDG_CACHE_HOME/skill-tool` bzw. `~/.cache/skill-tool` (43 MB) und ist
+Index liegt in `$XDG_CACHE_HOME/skiller` bzw. `~/.cache/skiller` (43 MB) und ist
 workspace-unabhängig. Upstream regeneriert etwa täglich.
 
 **skills.sh** — `GET https://www.skills.sh/api/search?q=…`, keyless. Liefert `owner/repo` und
@@ -139,8 +139,8 @@ Beim Zusammenführen gewinnt die spezifischere Referenz, weil sie ohne Suche im 
 ### Vor der Installation nachsehen
 
 ```sh
-skill-tool info swiftui-pro                                      # installiert
-skill-tool info avdlee/swift-testing-agent-skill/swift-testing-expert   # noch nicht
+skiller info swiftui-pro                                      # installiert
+skiller info avdlee/swift-testing-agent-skill/swift-testing-expert   # noch nicht
 ```
 
 Bei installierten Skills kommt die Beschreibung aus dem SKILL.md-Frontmatter und ist
@@ -173,5 +173,5 @@ swift build
 swift test
 ```
 
-Die Logik liegt vollständig in `SkillToolKit`; `SkillToolCLI` ist nur Argument-Parsing und
+Die Logik liegt vollständig in `SkillerKit`; `SkillerCLI` ist nur Argument-Parsing und
 Ausgabe.

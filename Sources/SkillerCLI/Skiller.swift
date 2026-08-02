@@ -1,11 +1,11 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 @main
-struct SkillTool: AsyncParsableCommand {
+struct Skiller: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "skill-tool",
+        commandName: "skiller",
         abstract: "Find agent skills, check them out locally, and group them with symlinks.",
         version: "0.1.0",
         subcommands: [

@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct SyncCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -87,7 +87,7 @@ struct DoctorCommand: AsyncParsableCommand {
         if repairable.isEmpty {
             print("")
         } else {
-            print(" \(repairable.count) can be repaired with `skill-tool sync`.")
+            print(" \(repairable.count) can be repaired with `skiller sync`.")
         }
         throw ExitCode.failure
     }

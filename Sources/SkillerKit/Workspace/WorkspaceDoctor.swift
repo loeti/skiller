@@ -46,7 +46,7 @@ public enum WorkspaceDoctor {
                             kind: .missingClone,
                             path: relative(repositoryDirectory, in: workspace),
                             detail: "\(entry.sourceDescription) is in the lock file but not cloned",
-                            fix: "skill-tool sync",
+                            fix: "skiller sync",
                             isRepairableBySync: true
                         )
                     )
@@ -60,7 +60,7 @@ public enum WorkspaceDoctor {
                             kind: .missingSkillDirectory,
                             path: relative(skillDirectory, in: workspace),
                             detail: "'\(entry.skillPath)' no longer exists in \(entry.repoSlug) at \(String(entry.commit.prefix(7)))",
-                            fix: "skill-tool remove \(entry.name), or re-add at a different ref",
+                            fix: "skiller remove \(entry.name), or re-add at a different ref",
                             isRepairableBySync: false
                         )
                     )
@@ -75,7 +75,7 @@ public enum WorkspaceDoctor {
                         kind: .missingInstallLink,
                         path: installPath,
                         detail: "no link for '\(entry.name)'",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .wrongTarget(let actual):
@@ -83,7 +83,7 @@ public enum WorkspaceDoctor {
                         kind: .wrongInstallLink,
                         path: installPath,
                         detail: "points at '\(actual)' instead of the locked skill",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .broken(let target):
@@ -91,7 +91,7 @@ public enum WorkspaceDoctor {
                         kind: .brokenInstallLink,
                         path: installPath,
                         detail: "dangling link to '\(target)'",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .occupiedByRealPath:
@@ -99,7 +99,7 @@ public enum WorkspaceDoctor {
                         kind: .wrongInstallLink,
                         path: installPath,
                         detail: "a real directory sits where the link belongs",
-                        fix: "move it aside, then skill-tool sync",
+                        fix: "move it aside, then skiller sync",
                         isRepairableBySync: false
                     ))
                 }
@@ -110,7 +110,7 @@ public enum WorkspaceDoctor {
                         kind: .missingInstallLink,
                         path: installPath,
                         detail: "adopted skill '\(entry.name)' has no content directory",
-                        fix: "skill-tool remove \(entry.name) --prune",
+                        fix: "skiller remove \(entry.name) --prune",
                         isRepairableBySync: false
                     ))
                 }
@@ -127,7 +127,7 @@ public enum WorkspaceDoctor {
                         kind: .missingGroupLink,
                         path: relative(groupLink, in: workspace),
                         detail: "'\(entry.name)' should be linked into '\(group)'",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .broken(let target):
@@ -135,7 +135,7 @@ public enum WorkspaceDoctor {
                         kind: .brokenGroupLink,
                         path: relative(groupLink, in: workspace),
                         detail: "dangling link to '\(target)'",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .wrongTarget(let actual):
@@ -143,7 +143,7 @@ public enum WorkspaceDoctor {
                         kind: .brokenGroupLink,
                         path: relative(groupLink, in: workspace),
                         detail: "points at '\(actual)' instead of installs/\(entry.name)",
-                        fix: "skill-tool sync",
+                        fix: "skiller sync",
                         isRepairableBySync: true
                     ))
                 case .occupiedByRealPath:
@@ -151,7 +151,7 @@ public enum WorkspaceDoctor {
                         kind: .unadoptedDirectory,
                         path: relative(groupLink, in: workspace),
                         detail: "real directory where a group link belongs",
-                        fix: "skill-tool adopt \(relative(groupLink, in: workspace))",
+                        fix: "skiller adopt \(relative(groupLink, in: workspace))",
                         isRepairableBySync: false
                     ))
                 }
@@ -165,7 +165,7 @@ public enum WorkspaceDoctor {
                 kind: .untrackedInstall,
                 path: relative(layout.installLink(name: name), in: workspace),
                 detail: "'\(name)' exists but is not in the lock file",
-                fix: "skill-tool remove \(name), or re-add it to record where it came from",
+                fix: "skiller remove \(name), or re-add it to record where it came from",
                 isRepairableBySync: false
             ))
         }
@@ -181,7 +181,7 @@ public enum WorkspaceDoctor {
                     kind: .brokenGroupLink,
                     path: relative(link, in: workspace),
                     detail: "does not resolve to installs/\(name)",
-                    fix: "skill-tool unlink \(group) \(name)",
+                    fix: "skiller unlink \(group) \(name)",
                     isRepairableBySync: false
                 ))
             }
@@ -206,7 +206,7 @@ public enum WorkspaceDoctor {
                 kind: .unadoptedDirectory,
                 path: relative(candidate, in: workspace),
                 detail: "real skill directory under skills/ — not linked, not tracked",
-                fix: "skill-tool adopt \(relative(candidate, in: workspace))",
+                fix: "skiller adopt \(relative(candidate, in: workspace))",
                 isRepairableBySync: false
             ))
         }

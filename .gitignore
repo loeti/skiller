@@ -63,7 +63,7 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 
-# ---> skill-tool
+# ---> skiller
 .DS_Store
 /.swiftpm
 .netrc

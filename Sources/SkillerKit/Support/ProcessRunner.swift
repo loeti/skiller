@@ -89,7 +89,7 @@ public enum ProcessRunner {
     ) throws -> ProcessResult {
         let fileManager = FileManager.default
         let scratch = fileManager.temporaryDirectory
-            .appending(path: "skill-tool-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "skiller-\(UUID().uuidString)", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: scratch, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: scratch) }
 

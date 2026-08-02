@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import SkillToolKit
+@testable import SkillerKit
 
 @Suite("Relative symlinks")
 struct LinkManagerTests {
@@ -11,7 +11,7 @@ struct LinkManagerTests {
 
         init() throws {
             root = FileManager.default.temporaryDirectory
-                .appending(path: "skill-tool-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+                .appending(path: "skiller-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         }
 

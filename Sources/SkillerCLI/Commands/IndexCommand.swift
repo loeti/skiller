@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct IndexCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -55,7 +55,7 @@ struct IndexCommand: AsyncParsableCommand {
     private func printStatus(_ cache: RegistryIndexCache) {
         guard let metadata = cache.metadata() else {
             print("No local registry index.")
-            print("Build it with: skill-tool index --refresh")
+            print("Build it with: skiller index --refresh")
             return
         }
 

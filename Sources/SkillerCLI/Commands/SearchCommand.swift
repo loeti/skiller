@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct SearchCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -100,10 +100,10 @@ struct SearchCommand: AsyncParsableCommand {
         }
 
         print("")
-        print("Install with: skill-tool add <number|owner/repo/skill-id> --group <group>")
+        print("Install with: skiller add <number|owner/repo/skill-id> --group <group>")
         if !outcome.results.contains(where: { $0.origins.contains(.registry) }),
            !RegistryIndexCache().exists {
-            print("Descriptions and licences come from the community registry: skill-tool index --refresh")
+            print("Descriptions and licences come from the community registry: skiller index --refresh")
         }
     }
 

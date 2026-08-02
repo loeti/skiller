@@ -16,7 +16,7 @@ public struct RegistryShardIndex: SkillRegistry {
         guard cache.exists else {
             throw RegistryError(
                 registry: origin.rawValue,
-                reason: "no local index — run `skill-tool index --refresh` (~18 MB, once)"
+                reason: "no local index — run `skiller index --refresh` (~18 MB, once)"
             )
         }
 

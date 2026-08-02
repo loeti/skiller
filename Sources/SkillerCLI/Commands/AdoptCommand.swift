@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct AdoptCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -93,7 +93,7 @@ struct AdoptCommand: AsyncParsableCommand {
             for match in matches {
                 print("    \(match.ref.canonical)")
             }
-            print("    replace with a tracked copy: skill-tool remove \(outcome.name) --prune && skill-tool add \(matches[0].ref.canonical)")
+            print("    replace with a tracked copy: skiller remove \(outcome.name) --prune && skiller add \(matches[0].ref.canonical)")
         }
     }
 }

@@ -1,12 +1,12 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct LinkCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "link",
         abstract: "Link an installed skill into a group under skills/.",
-        discussion: "Groups may be nested — `skill-tool link vpbank/bkt <skill>` works."
+        discussion: "Groups may be nested — `skiller link vpbank/bkt <skill>` works."
     )
 
     @Argument(help: "Group directory under skills/.")

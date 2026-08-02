@@ -36,7 +36,7 @@ public struct Workspace: Sendable {
                 directory.
 
                 Pass --workspace <path>, set \(Workspace.environmentVariable), or run \
-                `skill-tool init <path>` to create one.
+                `skiller init <path>` to create one.
                 """
             case .notADirectory(let path):
                 "'\(path)' is not a directory."
@@ -45,7 +45,7 @@ public struct Workspace: Sendable {
     }
 
     /// Resolves a workspace root: explicit path, then `AGENTIC_WORKSPACE`, then the nearest
-    /// ancestor of the current directory containing `.skilltool`.
+    /// ancestor of the current directory containing `.skiller`.
     public static func resolveRoot(
         explicit: String?,
         environment: [String: String] = ProcessInfo.processInfo.environment,

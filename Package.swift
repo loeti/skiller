@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "skill-tool",
+    name: "skiller",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "skill-tool", targets: ["SkillToolCLI"]),
-        .library(name: "SkillToolKit", targets: ["SkillToolKit"]),
+        .executable(name: "skiller", targets: ["SkillerCLI"]),
+        .library(name: "SkillerKit", targets: ["SkillerKit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
@@ -14,19 +14,19 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "SkillToolKit",
+            name: "SkillerKit",
             dependencies: [.product(name: "Yams", package: "Yams")]
         ),
         .executableTarget(
-            name: "SkillToolCLI",
+            name: "SkillerCLI",
             dependencies: [
-                "SkillToolKit",
+                "SkillerKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
         .testTarget(
-            name: "SkillToolKitTests",
-            dependencies: ["SkillToolKit"]
+            name: "SkillerKitTests",
+            dependencies: ["SkillerKit"]
         ),
     ]
 )

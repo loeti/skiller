@@ -40,7 +40,7 @@ enum HTTPClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 30
-        request.setValue("skill-tool/0.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("skiller/0.1", forHTTPHeaderField: "User-Agent")
         for (field, value) in headers {
             request.setValue(value, forHTTPHeaderField: field)
         }

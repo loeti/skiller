@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import SkillToolKit
+@testable import SkillerKit
 
 @Suite("SKILL.md front matter")
 struct FrontmatterParserTests {

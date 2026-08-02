@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct InfoCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -9,7 +9,7 @@ struct InfoCommand: AsyncParsableCommand {
         discussion: """
             Pass an installed name to see its source, commit, groups and contents. Pass a \
             reference like owner/repo/skill-id to look one up before installing — licence and \
-            description come from the local registry index, so run `skill-tool index --refresh` \
+            description come from the local registry index, so run `skiller index --refresh` \
             first if you have not.
             """,
         aliases: ["show"]
@@ -94,7 +94,7 @@ struct InfoCommand: AsyncParsableCommand {
 
         if !details.isInstalled, let ref = details.candidateRef {
             print("")
-            print("  Install with: skill-tool add \(ref.canonical) --group <group>")
+            print("  Install with: skiller add \(ref.canonical) --group <group>")
         }
     }
 

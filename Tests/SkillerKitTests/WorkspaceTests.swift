@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import SkillToolKit
+@testable import SkillerKit
 
 @Suite("Lock file, discovery and workspace resolution")
 struct WorkspaceTests {
@@ -260,7 +260,7 @@ struct WorkspaceTests {
         #expect(resolved.standardizedFileURL == root.standardizedFileURL)
     }
 
-    @Test("the nearest ancestor holding .skilltool is found")
+    @Test("the nearest ancestor holding .skiller is found")
     func walksUpToMarker() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "walk-\(UUID().uuidString)", directoryHint: .isDirectory)

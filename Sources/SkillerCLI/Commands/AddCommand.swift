@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct AddCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -8,7 +8,7 @@ struct AddCommand: AsyncParsableCommand {
         abstract: "Clone a skill and expose it under installs/.",
         discussion: """
             The reference can be owner/repo, owner/repo/skill-id, a github.com URL, or the \
-            number of a row from the last `skill-tool search`.
+            number of a row from the last `skiller search`.
 
             Giving only owner/repo installs every skill in that repository.
             """
@@ -105,7 +105,7 @@ enum SkillReferenceResolver {
             let results = try? JSONDecoder().decode([SkillSearchResult].self, from: data),
             !results.isEmpty
         else {
-            throw CLIError.message("No cached search results. Run `skill-tool search <query>` first.")
+            throw CLIError.message("No cached search results. Run `skiller search <query>` first.")
         }
         guard index <= results.count else {
             throw CLIError.message("The last search returned \(results.count) results; \(index) is out of range.")

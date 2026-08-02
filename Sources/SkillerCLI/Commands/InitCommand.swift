@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct InitCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

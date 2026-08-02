@@ -31,7 +31,7 @@ public struct RegistryRecord: Sendable, Hashable {
 ///
 /// Shards are keyed by `sha256(install|branch)`, so there is no way to look one skill up by
 /// name: it is all 256 or nothing. At ~72 KB gzip each that is ~18 MB once, which is why this
-/// is an explicit `skill-tool index --refresh` rather than something a search triggers.
+/// is an explicit `skiller index --refresh` rather than something a search triggers.
 public struct RegistryIndexCache: Sendable {
     public static let defaultBaseURL = URL(
         string: "https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main"
@@ -48,16 +48,16 @@ public struct RegistryIndexCache: Sendable {
         self.directory = directory ?? Self.defaultDirectory()
     }
 
-    /// `$XDG_CACHE_HOME/skill-tool` or `~/.cache/skill-tool` — shared across workspaces, since
+    /// `$XDG_CACHE_HOME/skiller` or `~/.cache/skiller` — shared across workspaces, since
     /// the registry has nothing to do with any one of them.
     public static func defaultDirectory() -> URL {
         let environment = ProcessInfo.processInfo.environment
         if let xdg = environment["XDG_CACHE_HOME"], !xdg.isEmpty {
             return URL(filePath: xdg, directoryHint: .isDirectory)
-                .appending(path: "skill-tool", directoryHint: .isDirectory)
+                .appending(path: "skiller", directoryHint: .isDirectory)
         }
         return FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: ".cache/skill-tool", directoryHint: .isDirectory)
+            .appending(path: ".cache/skiller", directoryHint: .isDirectory)
     }
 
     var indexFile: URL { directory.appending(path: "registry-index.tsv", directoryHint: .notDirectory) }

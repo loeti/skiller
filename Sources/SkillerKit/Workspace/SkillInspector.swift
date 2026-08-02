@@ -58,7 +58,7 @@ public struct SkillInspector: Sendable {
             case .notFound(let argument):
                 """
                 '\(argument)' is neither installed nor a skill reference.
-                Try `skill-tool list`, or pass owner/repo/skill-id.
+                Try `skiller list`, or pass owner/repo/skill-id.
                 """
             }
         }

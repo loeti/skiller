@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SkillToolKit
+import SkillerKit
 
 struct ListCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -60,7 +60,7 @@ struct ListCommand: AsyncParsableCommand {
         } else {
             print("\(review.count) of \(entries.count) need a look before anything ships: \(review.map(\.name).joined(separator: ", "))")
         }
-        print("Run `skill-tool sync` to refresh licence data for older entries.")
+        print("Run `skiller sync` to refresh licence data for older entries.")
     }
 
     private func printInstalls(_ workspace: Workspace) {
@@ -70,7 +70,7 @@ struct ListCommand: AsyncParsableCommand {
         }
 
         guard !entries.isEmpty || !untracked.isEmpty else {
-            print("Nothing installed. Try `skill-tool search <query>`.")
+            print("Nothing installed. Try `skiller search <query>`.")
             return
         }
 
@@ -94,14 +94,14 @@ struct ListCommand: AsyncParsableCommand {
 
         if !untracked.isEmpty {
             print("")
-            print("\(untracked.count) install(s) not in the lock file — run `skill-tool doctor`.")
+            print("\(untracked.count) install(s) not in the lock file — run `skiller doctor`.")
         }
     }
 
     private func printGroups(_ workspace: Workspace) {
         let groups = workspace.groups()
         guard !groups.isEmpty else {
-            print("No groups yet. Create one with `skill-tool link <group> <skill>`.")
+            print("No groups yet. Create one with `skiller link <group> <skill>`.")
             return
         }
 
