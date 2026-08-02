@@ -7,7 +7,7 @@ struct Skiller: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "skiller",
         abstract: "Find agent skills, check them out locally, and group them with symlinks.",
-        version: "0.1.0",
+        version: "0.2.0",
         subcommands: [
             InitCommand.self,
             SearchCommand.self,
