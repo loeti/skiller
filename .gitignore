@@ -62,3 +62,8 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
+
+# ---> skill-tool
+.DS_Store
+/.swiftpm
+.netrc
