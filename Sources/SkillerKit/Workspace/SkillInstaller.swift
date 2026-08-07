@@ -63,6 +63,20 @@ public struct SkillInstaller: Sendable {
         }
     }
 
+    /// What `install` is busy with, so a caller can say so instead of going quiet for minutes.
+    ///
+    /// Cloning an aggregator repository takes long enough that silence reads as a hang, and the
+    /// scan that follows is worse: it parses the front matter of every `SKILL.md` in the clone.
+    public enum Progress: Sendable {
+        case cloning(repo: String)
+        case updating(repo: String)
+        /// A line of git's own progress output, already stripped of its carriage return.
+        case git(String)
+        /// Falling back to walking the whole clone, because the identifier is not a path.
+        case scanning(repo: String)
+        case resolvingLicense(name: String)
+    }
+
     public struct InstallOutcome: Sendable {
         public var name: String
         public var skill: DiscoveredSkill
@@ -80,33 +94,65 @@ public struct SkillInstaller: Sendable {
         ref: SkillRef,
         as explicitName: String? = nil,
         group: String? = nil,
-        forceUpdate: Bool = false
+        forceUpdate: Bool = false,
+        onProgress: (@Sendable (Progress) -> Void)? = nil
     ) async throws -> [InstallOutcome] {
         try await git.ensureAvailable()
         try workspace.layout.createDirectories()
 
         let repositoryDirectory = workspace.layout.repositoryDirectory(for: ref)
         let alreadyCloned = git.isRepository(repositoryDirectory)
+        // Written out rather than with `map`: the type checker cannot see through an optional
+        // closure returning a `@Sendable` one.
+        let gitProgress: (@Sendable (String) -> Void)?
+        if let onProgress {
+            gitProgress = { line in onProgress(.git(line)) }
+        } else {
+            gitProgress = nil
+        }
 
         if !alreadyCloned {
             guard let cloneURL = ref.cloneURL else {
                 throw InstallError.noSkillsInRepository(ref.repoSlug)
             }
+            onProgress?(.cloning(repo: ref.repoSlug))
             try await git.clone(
                 from: cloneURL,
                 into: repositoryDirectory,
                 ref: ref.gitRef,
-                depth: workspace.config.cloneDepth
+                depth: workspace.config.cloneDepth,
+                onProgress: gitProgress
             )
         } else if forceUpdate {
+            onProgress?(.updating(repo: ref.repoSlug))
             try await git.update(
                 directory: repositoryDirectory,
                 ref: ref.gitRef,
-                depth: workspace.config.cloneDepth
+                depth: workspace.config.cloneDepth,
+                onProgress: gitProgress
             )
         }
 
         let commit = try await git.headCommit(in: repositoryDirectory)
+
+        // A skill identified by its path needs no scan at all. That matters: on an aggregator
+        // repository the scan parses the front matter of every SKILL.md in the clone, of which
+        // there can be hundreds of thousands.
+        if let skillID = ref.skillID,
+           let direct = SkillDiscovery.skill(at: skillID, in: repositoryDirectory) {
+            return try finishInstall(
+                targets: [direct],
+                ref: ref,
+                explicitName: explicitName,
+                group: group,
+                commit: commit,
+                repositoryDirectory: repositoryDirectory,
+                alreadyCloned: alreadyCloned,
+                onProgress: onProgress
+            )
+        }
+
+        onProgress?(.scanning(repo: ref.repoSlug))
         let discovered = SkillDiscovery.discoverSkills(in: repositoryDirectory)
         guard !discovered.isEmpty else { throw InstallError.noSkillsInRepository(ref.repoSlug) }
 
@@ -126,6 +172,30 @@ public struct SkillInstaller: Sendable {
             targets = discovered
         }
 
+        return try finishInstall(
+            targets: targets,
+            ref: ref,
+            explicitName: explicitName,
+            group: group,
+            commit: commit,
+            repositoryDirectory: repositoryDirectory,
+            alreadyCloned: alreadyCloned,
+            onProgress: onProgress
+        )
+    }
+
+    /// Links the resolved skills into the workspace and records them, whichever way they were
+    /// found. Shared by the path fast path and the full scan so both write the lock identically.
+    private mutating func finishInstall(
+        targets: [DiscoveredSkill],
+        ref: SkillRef,
+        explicitName: String?,
+        group: String?,
+        commit: String,
+        repositoryDirectory: URL,
+        alreadyCloned: Bool,
+        onProgress: (@Sendable (Progress) -> Void)?
+    ) throws -> [InstallOutcome] {
         var outcomes: [InstallOutcome] = []
         var updatedLock = workspace.lock
 
@@ -171,6 +241,7 @@ public struct SkillInstaller: Sendable {
                 if !groups.contains(group) { groups.append(group) }
             }
 
+            onProgress?(.resolvingLicense(name: name))
             let license = LicenseResolver.resolve(
                 manifest: skill.manifest,
                 registry: registry.lookup(repo: ref.repoSlug, skillName: name),

@@ -48,7 +48,13 @@ public struct RegistryShardIndex: SkillRegistry {
     public func lookup(repo: String, skillName: String) -> RegistryRecord? {
         guard cache.exists, let data = try? cache.loadRaw() else { return nil }
 
-        let needle = Array(repo.lowercased().utf8)
+        // Both needles must be present, and the skill name is tested first because it is by far
+        // the more selective of the two. Filtering on the repository alone is a trap: an
+        // aggregator's slug appears on every one of its skills, so for the registry's own
+        // repository that let ~160 000 lines through to be decoded and parsed — 14 seconds for
+        // a lookup that has to be incidental to `add`.
+        let nameNeedle = Array(skillName.lowercased().utf8)
+        let repoNeedle = Array(repo.lowercased().utf8)
         var best: RegistryRecord?
 
         data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
@@ -62,7 +68,9 @@ public struct RegistryShardIndex: SkillRegistry {
                 guard length > 0 else { continue }
 
                 let line = UnsafeBufferPointer(start: base + lineStart, count: length)
-                guard Self.containsCaseInsensitive(line, needle) else { continue }
+                guard Self.containsCaseInsensitive(line, nameNeedle),
+                      Self.containsCaseInsensitive(line, repoNeedle)
+                else { continue }
                 guard let record = Self.parse(String(decoding: line, as: UTF8.self)) else { continue }
                 guard record.repo.caseInsensitiveCompare(repo) == .orderedSame else { continue }
 

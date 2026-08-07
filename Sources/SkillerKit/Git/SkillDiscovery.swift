@@ -36,6 +36,42 @@ public enum SkillDiscovery {
         }
     }
 
+    /// Resolves an identifier that already names the skill's directory, without walking the
+    /// repository.
+    ///
+    /// Worth having because walking is not cheap on an aggregator: the community registry's own
+    /// repository holds over 200 000 `SKILL.md` files, and `discoverSkills` reads and parses the
+    /// front matter of every one of them. When the identifier is a path — which is what GitHub
+    /// code search reports — one `stat` answers the same question.
+    ///
+    /// Returns `nil` whenever the identifier does not name a skill directory outright, leaving
+    /// the caller to fall back to the full walk and its fuzzier matching.
+    public static func skill(at identifier: String, in repositoryDirectory: URL) -> DiscoveredSkill? {
+        let relativePath = identifier.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        guard !relativePath.isEmpty else { return nil }
+        // No escaping the clone, and no absolute paths pretending to be identifiers.
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard !components.contains(".."), !components.contains(".") else { return nil }
+
+        let directory = repositoryDirectory
+            .standardizedFileURL
+            .appending(path: relativePath, directoryHint: .isDirectory)
+        guard Workspace.isDirectory(directory) else { return nil }
+
+        let manifestURL = directory.appending(path: SkillManifest.fileName, directoryHint: .notDirectory)
+        guard FileManager.default.fileExists(atPath: manifestURL.path(percentEncoded: false)) else {
+            return nil
+        }
+
+        return DiscoveredSkill(
+            relativePath: relativePath,
+            manifest: FrontmatterParser.parse(
+                fileAt: manifestURL,
+                fallbackName: components.last ?? relativePath
+            )
+        )
+    }
+
     /// Every directory in `repositoryDirectory` that holds a `SKILL.md`, sorted by path.
     public static func discoverSkills(in repositoryDirectory: URL) -> [DiscoveredSkill] {
         var found: [DiscoveredSkill] = []

@@ -25,19 +25,23 @@ public struct GitClient: Sendable {
         from url: URL,
         into directory: URL,
         ref: String? = nil,
-        depth: Int? = 1
+        depth: Int? = 1,
+        onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws {
         try FileManager.default.createDirectory(
             at: directory.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        var arguments = ["clone", "--quiet"]
+        // git suppresses its progress output when stderr is not a terminal, and ours never is —
+        // it is captured. `--progress` asks for it anyway, which is the only way a caller can
+        // report on a clone that runs for minutes.
+        var arguments = ["clone", onProgress == nil ? "--quiet" : "--progress"]
         if let depth { arguments += ["--depth", String(depth)] }
         if let ref { arguments += ["--branch", ref] }
         arguments += [url.absoluteString, directory.path(percentEncoded: false)]
 
-        let result = try await ProcessRunner.run("git", arguments)
+        let result = try await ProcessRunner.run("git", arguments, onProgress: onProgress)
         if result.succeeded { return }
 
         // Clean up whatever a partial clone left behind before retrying.
@@ -55,7 +59,13 @@ public struct GitClient: Sendable {
         // that `--branch` cannot resolve.
         try await ProcessRunner.check(
             "git",
-            ["clone", "--quiet", url.absoluteString, directory.path(percentEncoded: false)]
+            [
+                "clone",
+                onProgress == nil ? "--quiet" : "--progress",
+                url.absoluteString,
+                directory.path(percentEncoded: false),
+            ],
+            onProgress: onProgress
         )
         try await checkout(ref, in: directory)
     }
@@ -99,7 +109,12 @@ public struct GitClient: Sendable {
     ///
     /// A hard reset is deliberate: `downloads/` is a cache the tool owns, not a place to make
     /// local edits, and merge conflicts there would be a dead end for the user.
-    public func update(directory: URL, ref: String?, depth: Int? = 1) async throws {
+    public func update(
+        directory: URL,
+        ref: String?,
+        depth: Int? = 1,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws {
         let target: String
         if let ref {
             target = ref
@@ -107,13 +122,18 @@ public struct GitClient: Sendable {
             target = try await defaultBranch(in: directory)
         }
 
-        var fetchArguments = ["fetch", "--quiet"]
+        var fetchArguments = ["fetch", onProgress == nil ? "--quiet" : "--progress"]
         if let depth, await isShallow(directory: directory) {
             fetchArguments += ["--depth", String(depth)]
         }
         fetchArguments += ["origin", target]
 
-        try await ProcessRunner.check("git", fetchArguments, workingDirectory: directory)
+        try await ProcessRunner.check(
+            "git",
+            fetchArguments,
+            workingDirectory: directory,
+            onProgress: onProgress
+        )
         try await ProcessRunner.check(
             "git",
             ["reset", "--hard", "--quiet", "FETCH_HEAD"],

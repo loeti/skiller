@@ -32,11 +32,14 @@ public struct ProcessFailure: Error, CustomStringConvertible {
 /// before it is drained deadlocks the child process, and `git clone` on a large repository
 /// produces more than enough progress output to hit that.
 public enum ProcessRunner {
+    /// - Parameter onProgress: called with each line the command writes to standard error
+    ///   *while it runs*. Standard error is still captured in full for the result.
     public static func run(
         _ executable: String,
         _ arguments: [String],
         workingDirectory: URL? = nil,
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws -> ProcessResult {
         let commandDescription = ([executable] + arguments).joined(separator: " ")
         return try await Task.detached(priority: .userInitiated) {
@@ -45,7 +48,8 @@ public enum ProcessRunner {
                 arguments: arguments,
                 workingDirectory: workingDirectory,
                 environment: environment,
-                commandDescription: commandDescription
+                commandDescription: commandDescription,
+                onProgress: onProgress
             )
         }.value
     }
@@ -56,13 +60,15 @@ public enum ProcessRunner {
         _ executable: String,
         _ arguments: [String],
         workingDirectory: URL? = nil,
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws -> ProcessResult {
         let result = try await run(
             executable,
             arguments,
             workingDirectory: workingDirectory,
-            environment: environment
+            environment: environment,
+            onProgress: onProgress
         )
         guard result.succeeded else {
             throw ProcessFailure(
@@ -85,7 +91,8 @@ public enum ProcessRunner {
         arguments: [String],
         workingDirectory: URL?,
         environment: [String: String]?,
-        commandDescription: String
+        commandDescription: String,
+        onProgress: (@Sendable (String) -> Void)?
     ) throws -> ProcessResult {
         let fileManager = FileManager.default
         let scratch = fileManager.temporaryDirectory
@@ -126,6 +133,19 @@ public enum ProcessRunner {
                 standardError: "Could not launch: \(error.localizedDescription)"
             )
         }
+        if let onProgress {
+            // Tailing the capture file rather than reading a pipe: the file-based design exists
+            // to avoid the deadlock a full pipe buffer causes, and progress must not bring it back.
+            let reader = try? FileHandle(forReadingFrom: errURL)
+            var pending = ""
+            while process.isRunning {
+                Thread.sleep(forTimeInterval: 0.1)
+                emitProgress(from: reader, pending: &pending, onProgress)
+            }
+            emitProgress(from: reader, pending: &pending, onProgress)
+            if !pending.isEmpty { onProgress(pending) }
+            try? reader?.close()
+        }
         process.waitUntilExit()
 
         let stdout = (try? String(contentsOf: outURL, encoding: .utf8)) ?? ""
@@ -135,5 +155,39 @@ public enum ProcessRunner {
             standardOutput: stdout,
             standardError: stderr
         )
+    }
+
+    /// Hands whatever has been written since the last call to `onProgress`, line by line.
+    ///
+    /// A carriage return counts as a line break: git overwrites its progress line with `\r`
+    /// rather than starting a new one, so splitting on newlines alone would deliver one giant
+    /// line at the very end — exactly the silence this is meant to fix.
+    private static func emitProgress(
+        from handle: FileHandle?,
+        pending: inout String,
+        _ onProgress: (String) -> Void
+    ) {
+        guard let handle, let data = try? handle.readToEnd(), !data.isEmpty else { return }
+        splitProgress(String(decoding: data, as: UTF8.self), pending: &pending, onProgress)
+    }
+
+    /// The line splitting on its own, so it can be tested without a live child process.
+    static func splitProgress(
+        _ chunk: String,
+        pending: inout String,
+        _ onProgress: (String) -> Void
+    ) {
+        pending += chunk
+
+        var segments = pending.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: { $0 == "\r" || $0 == "\n" }
+        )
+        // The last segment may be half-written; keep it until its terminator arrives.
+        pending = segments.popLast().map(String.init) ?? ""
+        for segment in segments {
+            let line = segment.trimmingCharacters(in: .whitespaces)
+            if !line.isEmpty { onProgress(line) }
+        }
     }
 }

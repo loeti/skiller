@@ -37,12 +37,17 @@ struct AddCommand: AsyncParsableCommand {
         if let ref { skillRef.gitRef = ref }
 
         var installer = SkillInstaller(workspace: workspace)
+        // A clone of an aggregator repository runs for minutes; without this the command looks
+        // hung.
+        let reporter = ProgressReporter()
         let outcomes = try await installer.install(
             ref: skillRef,
             as: `as`,
             group: group,
-            forceUpdate: update
+            forceUpdate: update,
+            onProgress: { reporter.report($0) }
         )
+        reporter.finish()
 
         let layout = installer.workspace.layout
         for outcome in outcomes {
