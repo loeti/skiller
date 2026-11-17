@@ -66,6 +66,9 @@ public struct LockedSkill: Codable, Sendable, Equatable {
     public var gitRef: String?
     /// The commit the clone was resolved to.
     public var commit: String
+    /// The commit this skill was locked at before the last update moved it, so `rollback` has
+    /// somewhere to go. Only one step is kept: an update is undone, not replayed backwards.
+    public var previousCommit: String?
     /// Group directories under `skills/` linking to this skill.
     public var groups: [String]
     public var installedAt: Date
@@ -88,6 +91,7 @@ public struct LockedSkill: Codable, Sendable, Equatable {
         skillPath: String = "",
         gitRef: String? = nil,
         commit: String = "",
+        previousCommit: String? = nil,
         groups: [String] = [],
         installedAt: Date = Date(),
         license: String? = nil,
@@ -103,6 +107,7 @@ public struct LockedSkill: Codable, Sendable, Equatable {
         self.skillPath = skillPath
         self.gitRef = gitRef
         self.commit = commit
+        self.previousCommit = previousCommit
         self.groups = groups.sorted()
         self.installedAt = installedAt
         self.license = license
@@ -123,6 +128,7 @@ public struct LockedSkill: Codable, Sendable, Equatable {
         skillPath = try container.decodeIfPresent(String.self, forKey: .skillPath) ?? ""
         gitRef = try container.decodeIfPresent(String.self, forKey: .gitRef)
         commit = try container.decodeIfPresent(String.self, forKey: .commit) ?? ""
+        previousCommit = try container.decodeIfPresent(String.self, forKey: .previousCommit)
         groups = try container.decodeIfPresent([String].self, forKey: .groups) ?? []
         installedAt = try container.decodeIfPresent(Date.self, forKey: .installedAt) ?? Date()
         license = try container.decodeIfPresent(String.self, forKey: .license)

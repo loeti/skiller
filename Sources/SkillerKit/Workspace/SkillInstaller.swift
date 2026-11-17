@@ -258,6 +258,7 @@ public struct SkillInstaller: Sendable {
                     skillPath: skill.relativePath,
                     gitRef: ref.gitRef,
                     commit: commit,
+                    previousCommit: Self.previousCommit(locked: updatedLock[name], movingTo: commit),
                     groups: groups,
                     installedAt: updatedLock[name]?.installedAt ?? Date(),
                     license: license.license,
@@ -491,13 +492,18 @@ public struct SkillInstaller: Sendable {
                                 "\(entry.name): \(entry.repoSlug) has uncommitted changes — skipped"
                             )
                         } else {
-                            let before = try await git.headCommit(in: repositoryDirectory)
+                            // Measured against the locked commit, not HEAD: skills sharing a
+                            // clone are visited one after another, and only the first sees HEAD
+                            // move. The rest still changed and still need a way back.
+                            let head = try await git.headCommit(in: repositoryDirectory)
+                            let before = entry.commit.isEmpty ? head : entry.commit
                             try await git.update(
                                 directory: repositoryDirectory,
                                 ref: entry.gitRef,
                                 depth: workspace.config.cloneDepth
                             )
                             let after = try await git.headCommit(in: repositoryDirectory)
+                            entry.previousCommit = Self.previousCommit(locked: entry, movingTo: after)
                             entry.commit = after
                             if before != after {
                                 report.updated.append(
@@ -589,6 +595,122 @@ public struct SkillInstaller: Sendable {
 
         try workspace.updateLock { $0 = updatedLock }
         return report
+    }
+
+    // MARK: - Rollback
+
+    public struct RollbackOutcome: Sendable {
+        public var name: String
+        public var from: String
+        public var to: String
+        /// Other installed skills from the same clone. They share one working tree, so they
+        /// moved too — and their lock entries were updated to say so.
+        public var alsoMoved: [String]
+    }
+
+    public enum RollbackError: Error, CustomStringConvertible {
+        case localSkill(name: String)
+        case noPreviousCommit(name: String)
+        case localChanges(name: String, repository: String)
+        case unreachable(name: String, commit: String)
+        case missingAtCommit(name: String, skillPath: String, commit: String)
+
+        public var description: String {
+            switch self {
+            case .localSkill(let name):
+                "'\(name)' was adopted from a local directory and has no history to roll back to."
+            case .noPreviousCommit(let name):
+                """
+                '\(name)' has no earlier commit recorded. Only an update made with this version \
+                of skiller can be rolled back; to go to a specific commit, use \
+                `skiller add <source> --ref <commit> --update`.
+                """
+            case .localChanges(let name, let repository):
+                """
+                Not rolling back '\(name)': \(repository) has uncommitted changes, which a checkout \
+                would mix with the old commit. Discard them with `git -C <clone> restore .` first.
+                """
+            case .unreachable(let name, let commit):
+                "'\(name)': commit \(commit) can no longer be fetched — it may have been force-pushed away."
+            case .missingAtCommit(let name, let skillPath, let commit):
+                "'\(name)': '\(skillPath)' does not exist at \(commit), so rolling back would break it. Nothing was changed."
+            }
+        }
+    }
+
+    /// Moves a skill back to the commit it was locked at before its last update.
+    ///
+    /// The previous and current commit swap places, so a second rollback undoes the first.
+    /// Nothing is pinned: the next `sync --update` moves the skill forward again.
+    public mutating func rollback(name: String) async throws -> RollbackOutcome {
+        guard let entry = workspace.lock[name] else {
+            throw InstallError.notInstalled(name: name)
+        }
+        guard entry.origin == .git else {
+            throw RollbackError.localSkill(name: name)
+        }
+        guard let target = entry.previousCommit, !target.isEmpty, target != entry.commit else {
+            throw RollbackError.noPreviousCommit(name: name)
+        }
+
+        try await git.ensureAvailable()
+        let repositoryDirectory = workspace.layout.repositoryDirectory(for: entry)
+        if git.isRepository(repositoryDirectory) {
+            if await git.hasLocalChanges(in: repositoryDirectory) {
+                throw RollbackError.localChanges(name: name, repository: entry.repoSlug)
+            }
+        } else {
+            guard let cloneURL = entry.ref.cloneURL else {
+                throw InstallError.noSkillsInRepository(entry.repoSlug)
+            }
+            try await git.clone(
+                from: cloneURL,
+                into: repositoryDirectory,
+                ref: entry.gitRef,
+                depth: workspace.config.cloneDepth
+            )
+        }
+
+        let head = try await git.headCommit(in: repositoryDirectory)
+        guard await git.ensureCommit(target, in: repositoryDirectory) else {
+            throw RollbackError.unreachable(name: name, commit: git.shortCommit(target))
+        }
+
+        let skillDirectory = workspace.layout.skillDirectory(for: entry)
+        guard Workspace.isDirectory(skillDirectory) else {
+            // Put the clone back where it was; the install link would otherwise dangle.
+            _ = await git.ensureCommit(head, in: repositoryDirectory)
+            throw RollbackError.missingAtCommit(
+                name: name,
+                skillPath: entry.skillPath,
+                commit: git.shortCommit(target)
+            )
+        }
+
+        let installLink = workspace.layout.installLink(name: name)
+        if LinkManager.state(of: installLink, expectedTarget: skillDirectory) != .correct {
+            try LinkManager.createLink(at: installLink, to: skillDirectory, replaceExisting: true)
+        }
+
+        // Every skill in this clone now sits at `target`; the lock has to agree for all of them.
+        let siblings = workspace.lock.skills.filter {
+            $0.origin == .git && $0.name != name
+                && LinkManager.samePath(workspace.layout.repositoryDirectory(for: $0), repositoryDirectory)
+        }
+        try workspace.updateLock { lock in
+            for var skill in [entry] + siblings where skill.commit != target {
+                skill.previousCommit = skill.commit
+                skill.commit = target
+                lock.upsert(skill)
+            }
+        }
+
+        return RollbackOutcome(
+            name: name,
+            from: entry.commit,
+            to: target,
+            alsoMoved: siblings.filter { $0.commit != target }.map(\.name)
+        )
     }
 
     // MARK: - Adoption
@@ -722,6 +844,14 @@ public struct SkillInstaller: Sendable {
             try? fileManager.removeItem(at: current)
             current = current.deletingLastPathComponent().standardizedFileURL
         }
+    }
+
+    /// What `previousCommit` should become when a lock entry moves to `commit`: the commit it
+    /// is leaving, or — when it is not actually moving — whatever was recorded before.
+    static func previousCommit(locked: LockedSkill?, movingTo commit: String) -> String? {
+        guard let locked else { return nil }
+        guard !locked.commit.isEmpty, locked.commit != commit else { return locked.previousCommit }
+        return locked.commit
     }
 
     private func installExists(_ name: String) -> Bool {

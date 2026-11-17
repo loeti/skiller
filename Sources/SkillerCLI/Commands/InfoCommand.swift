@@ -50,6 +50,9 @@ struct InfoCommand: AsyncParsableCommand {
             rows.append(("Source", locked.sourceDescription))
             if locked.origin == .git {
                 rows.append(("Commit", String(locked.commit.prefix(7)) + (locked.gitRef.map { "  (\($0))" } ?? "")))
+                if let previous = locked.previousCommit {
+                    rows.append(("Previous", String(previous.prefix(7)) + "  (skiller rollback \(locked.name))"))
+                }
             }
             rows.append(("Installed", Self.format(locked.installedAt)))
         } else if let ref = details.candidateRef {
@@ -108,6 +111,7 @@ struct InfoCommand: AsyncParsableCommand {
             var stars: Int?
             var source: String?
             var commit: String?
+            var previousCommit: String?
             var gitRef: String?
             var groups: [String]
             var contentPath: String?
@@ -123,6 +127,7 @@ struct InfoCommand: AsyncParsableCommand {
             stars: details.registry?.stars,
             source: details.locked?.sourceDescription ?? details.candidateRef?.canonical,
             commit: details.locked?.commit,
+            previousCommit: details.locked?.previousCommit,
             gitRef: details.locked?.gitRef,
             groups: details.groups,
             contentPath: details.resolvedPath,

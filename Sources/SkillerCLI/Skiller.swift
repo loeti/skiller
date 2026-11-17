@@ -20,6 +20,7 @@ struct Skiller: AsyncParsableCommand {
             InfoCommand.self,
             RemoveCommand.self,
             SyncCommand.self,
+            RollbackCommand.self,
             DoctorCommand.self,
             AdoptCommand.self,
         ]
